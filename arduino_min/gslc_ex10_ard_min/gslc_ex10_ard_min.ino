@@ -3,13 +3,13 @@
 // - Calvin Hass
 // - https://www.impulseadventure.com/elec/guislice-gui.html
 // - https://github.com/ImpulseAdventure/GUIslice
-// - Example 10 (Arduino):
-//   - Demonstrate textbox controls
-//   - NOTE: This is the simple version of the example without
-//     optimizing for memory consumption. Therefore, it may not
-//     run on Arduino devices with limited memory. A "minimal"
-//     version is located in the "arduino_min" folder which includes
-//     FLASH memory optimization for reduced memory devices.
+// - Example 10 (Arduino): [minimum RAM version]
+//     Demonstrate textbox controls
+//   - Demonstrates the use of ElemCreate*_P() functions
+//     These RAM-reduced examples take advantage of the internal
+//     Flash storage (via PROGMEM).
+//   - NOTE: This sketch requires moderate program storage in Flash.
+//     As a result, it may not run on basic Arduino devices (eg. ATmega328)
 //
 // ARDUINO NOTES:
 // - GUIslice_config.h must be edited to match the pinout connections
@@ -40,8 +40,17 @@ unsigned  m_nCount = 0;
 #define MAX_FONT                2
 
 // Define the maximum number of elements per page
-#define MAX_ELEM_PG_MAIN          7                  // # Elems total
-#define MAX_ELEM_PG_MAIN_RAM      MAX_ELEM_PG_MAIN   // # Elems in RAM
+// - To enable the same code to run on devices that support storing
+//   data into Flash (PROGMEM) and those that don't, we can make the
+//   number of elements in Flash dependent upon GSLC_USE_PROGMEM
+// - This should allow both Arduino and ARM Cortex to use the same code
+#define MAX_ELEM_PG_MAIN          7                                        // # Elems total
+#if (GSLC_USE_PROGMEM)
+  #define MAX_ELEM_PG_MAIN_PROG   6                                        // # Elems in Flash
+#else
+  #define MAX_ELEM_PG_MAIN_PROG   0                                         // # Elems in Flash
+#endif
+#define MAX_ELEM_PG_MAIN_RAM      MAX_ELEM_PG_MAIN - MAX_ELEM_PG_MAIN_PROG  // # Elems in RAM
 
 gslc_tsGui                  m_gui;
 gslc_tsDriver               m_drv;
@@ -49,9 +58,6 @@ gslc_tsFont                 m_asFont[MAX_FONT];
 gslc_tsPage                 m_asPage[MAX_PAGE];
 gslc_tsElem                 m_asPageElem[MAX_ELEM_PG_MAIN_RAM];   // Storage for all elements in RAM
 gslc_tsElemRef              m_asPageElemRef[MAX_ELEM_PG_MAIN];    // References for all elements in GUI
-
-gslc_tsXSlider              m_sXSlider;
-gslc_tsXSlider              m_sXSliderText;
 
 // Define max number of rows and columns
 // - Warning: sizing must be considered carefully on limited
@@ -139,40 +145,34 @@ bool InitOverlays()
 /*
   #define TMP_COL1 (gslc_tsColor){ 32, 32, 60}
   #define TMP_COL2 (gslc_tsColor){128,128,240}
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){2,2,320,50},
-    (char*)"Textbox",0,E_FONT_TITLE);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,TMP_COL1);
-  gslc_ElemSetTxtAlign(&m_gui,pElemRef,GSLC_ALIGN_MID_MID);
-  gslc_ElemSetFillEn(&m_gui,pElemRef,false);
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){0,0,320,50},
-    (char*)"Textbox",0,E_FONT_TITLE);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,TMP_COL2);
-  gslc_ElemSetTxtAlign(&m_gui,pElemRef,GSLC_ALIGN_MID_MID);
-  gslc_ElemSetFillEn(&m_gui,pElemRef,false);
+  // Note: must use title Font ID
+  gslc_ElemCreateTxt_P(&m_gui,98,E_PG_MAIN,2,2,320,50,"Textbox",&m_asFont[1],
+          TMP_COL1,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_MID,false,false);
+  gslc_ElemCreateTxt_P(&m_gui,99,E_PG_MAIN,0,0,320,50,"Textbox",&m_asFont[1],
+          TMP_COL2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_MID,false,false);
 */
 
   // Create background box
-  pElemRef = gslc_ElemCreateBox(&m_gui,E_ELEM_BOX,E_PG_MAIN,(gslc_tsRect){10,50,300,180});
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_WHITE,GSLC_COL_BLACK,GSLC_COL_BLACK);
+  gslc_ElemCreateBox_P(&m_gui,200,E_PG_MAIN,10,50,300,180,GSLC_COL_WHITE,GSLC_COL_BLACK,true,true,NULL,NULL);
 
   // Example horizontal slider
-  pElemRef = gslc_ElemXSliderCreate(&m_gui,E_SLIDER,E_PG_MAIN,&m_sXSlider,
-          (gslc_tsRect){20,60,140,20},0,100,50,5,false);
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_GREEN,GSLC_COL_BLACK,GSLC_COL_BLACK);
+  gslc_ElemXSliderCreate_P(&m_gui,E_SLIDER,E_PG_MAIN,20,60,140,20,
+    0,100,50,5,false,GSLC_COL_GREEN,GSLC_COL_BLACK);
+  pElemRef = gslc_PageFindElemById(&m_gui,E_PG_MAIN,E_SLIDER);
   gslc_ElemXSliderSetStyle(&m_gui,pElemRef,true,GSLC_COL_GREEN_DK4,10,5,GSLC_COL_GRAY_DK2);
   gslc_ElemXSliderSetPosFunc(&m_gui,pElemRef,&CbControls);
 
   // Text to show slider value
-  static char mstr1[8] = "";
-  pElemRef = gslc_ElemCreateTxt(&m_gui,E_ELEM_TXT_COUNT,E_PG_MAIN,(gslc_tsRect){180,60,40,20},
-    mstr1,sizeof(mstr1),E_FONT_TXT);
+  static char mstr_cnt[8] = ""; // Provide space for large counter value
+  gslc_ElemCreateTxt_P_R(&m_gui,E_ELEM_TXT_COUNT,E_PG_MAIN,180,60,40,20,mstr_cnt,8,&m_asFont[0], // E_FONT_TXT
+          GSLC_COL_GRAY_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
 
 
   // Create wrapping box for textbox and scrollbar
-  pElemRef = gslc_ElemCreateBox(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){18,83,203,64});
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_BLUE_DK4,GSLC_COL_BLACK,GSLC_COL_BLACK);
+  gslc_ElemCreateBox_P(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,18,83,203,64,GSLC_COL_BLUE_DK4,GSLC_COL_BLACK,true,true,NULL,NULL);
 
   // Create textbox
+  // - NOTE: XTextbox does not have a FLASH-based version yet (ElemXTextboxCreate_P)
   pElemRef = gslc_ElemXTextboxCreate(&m_gui,E_ELEM_TEXTBOX,E_PG_MAIN,
     &m_sTextbox,(gslc_tsRect){20,85,180,60},E_FONT_TXT,(char*)&m_acTextboxBuf,
         TBOX_ROWS,TBOX_COLS);
@@ -181,16 +181,14 @@ bool InitOverlays()
   m_pElemTextbox = pElemRef;
 
   // Create vertical scrollbar for textbox
-  pElemRef = gslc_ElemXSliderCreate(&m_gui,E_SCROLLBAR,E_PG_MAIN,&m_sXSliderText,
-        (gslc_tsRect){200,85,20,60},0,100,0,5,true);
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_BLUE_DK4,GSLC_COL_BLACK,GSLC_COL_BLACK);
+  gslc_ElemXSliderCreate_P(&m_gui,E_SCROLLBAR,E_PG_MAIN,200,85,20,60,
+    0,100,0,5,true,GSLC_COL_BLUE_DK4,GSLC_COL_BLACK);
+  pElemRef = gslc_PageFindElemById(&m_gui,E_PG_MAIN,E_SCROLLBAR);
   gslc_ElemXSliderSetPosFunc(&m_gui,pElemRef,&CbControls);
 
   // Quit button
-  pElemRef = gslc_ElemCreateBtnTxt(&m_gui,E_ELEM_BTN_QUIT,E_PG_MAIN,
-    (gslc_tsRect){250,60,50,30},(char*)"QUIT",0,E_FONT_TXT,&CbBtnQuit);
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_BLUE_DK2,GSLC_COL_BLUE_DK4,GSLC_COL_BLUE_DK1);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_WHITE);
+  gslc_ElemCreateBtnTxt_P(&m_gui,E_ELEM_BTN_QUIT,E_PG_MAIN,250,60,50,30,"Quit",&m_asFont[0],
+    GSLC_COL_WHITE,GSLC_COL_BLUE_DK2,GSLC_COL_BLUE_DK4,GSLC_COL_BLUE_DK2,GSLC_COL_BLUE_DK1,GSLC_ALIGN_MID_MID,true,true,&CbBtnQuit,NULL);
 
   return true;
 }
@@ -207,8 +205,11 @@ void setup()
   if (!gslc_Init(&m_gui,&m_drv,m_asPage,MAX_PAGE,m_asFont,MAX_FONT)) { return; }
 
   // Load Fonts
-  if (!gslc_FontAdd(&m_gui,E_FONT_TXT,GSLC_FONTREF_PTR,NULL,1)) { return; }
-  if (!gslc_FontAdd(&m_gui,E_FONT_TITLE,GSLC_FONTREF_PTR,NULL,3)) { return; }
+  // - NOTE: If we are using the ElemCreate*_P() macros then it is important to note
+  //   the font pointer (array index) as it will be provided to certain
+  //   ElemCreate*_P() functions (eg. ElemCreateTxt_P).
+  if (!gslc_FontAdd(&m_gui,E_FONT_TXT,GSLC_FONTREF_PTR,NULL,1)) { return; }   // m_asFont[0]
+  if (!gslc_FontAdd(&m_gui,E_FONT_TITLE,GSLC_FONTREF_PTR,NULL,3)) { return; } // m_asFont[1]
 
   // Create pages display
   InitOverlays();
@@ -260,4 +261,3 @@ void loop()
     while (1) { }
   }
 }
-

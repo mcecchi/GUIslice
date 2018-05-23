@@ -1,36 +1,40 @@
 //
 // GUIslice Library Examples
 // - Calvin Hass
-// - http://www.impulseadventure.com/elec/guislice-gui.html
-// - Example 02: Accept touch input, text button
+// - https://www.impulseadventure.com/elec/guislice-gui.html
+// - https://github.com/ImpulseAdventure/GUIslice
+// - Example 03 (LINUX):
+//     Accept touch input, graphic button
 //
 
 #include "GUIslice.h"
 #include "GUIslice_drv.h"
 
+#include <libgen.h>       // For path parsing
+
 
 // Defines for resources
-#define FONT_DROID_SANS "/usr/share/fonts/truetype/droid/DroidSans.ttf"
+#define MAX_PATH  255
+#define IMG_BTN_QUIT      "/res/btn-exit32x32.bmp"
+#define IMG_BTN_QUIT_SEL  "/res/btn-exit_sel32x32.bmp"
+char    m_strImgQuit[MAX_PATH];
+char    m_strImgQuitSel[MAX_PATH];
 
 // Enumerations for pages, elements, fonts, images
 enum {E_PG_MAIN};
 enum {E_ELEM_BOX,E_ELEM_BTN_QUIT};
-enum {E_FONT_BTN};
 
-bool    m_bQuit = false;
+bool        m_bQuit = false;
 
 // Instantiate the GUI
 #define MAX_PAGE            1
-#define MAX_FONT            1
 #define MAX_ELEM_PG_MAIN    2
 
 gslc_tsGui                  m_gui;
 gslc_tsDriver               m_drv;
-gslc_tsFont                 m_asFont[MAX_FONT];
 gslc_tsPage                 m_asPage[MAX_PAGE];
 gslc_tsElem                 m_asPageElem[MAX_ELEM_PG_MAIN];
 gslc_tsElemRef              m_asPageElemRef[MAX_ELEM_PG_MAIN];
-
 
 // Configure environment variables suitable for display
 // - These may need modification to match your system
@@ -46,14 +50,14 @@ void UserInitEnv()
   setenv((char*)"FRAMEBUFFER",GSLC_DEV_FB,1);
   setenv((char*)"SDL_FBDEV",GSLC_DEV_FB,1);
   setenv((char*)"SDL_VIDEODRIVER",GSLC_DEV_VID_DRV,1);
-#endif  
-  
+#endif
+
 #if defined(DRV_TOUCH_TSLIB)
   setenv((char*)"TSLIB_FBDEVICE",GSLC_DEV_FB,1);
-  setenv((char*)"TSLIB_TSDEVICE",GSLC_DEV_TOUCH,1); 
+  setenv((char*)"TSLIB_TSDEVICE",GSLC_DEV_TOUCH,1);
   setenv((char*)"TSLIB_CALIBFILE",(char*)"/etc/pointercal",1);
   setenv((char*)"TSLIB_CONFFILE",(char*)"/etc/ts.conf",1);
-  setenv((char*)"TSLIB_PLUGINDIR",(char*)"/usr/local/lib/ts",1);  
+  setenv((char*)"TSLIB_PLUGINDIR",(char*)"/usr/local/lib/ts",1);
 #endif
 }
 
@@ -61,7 +65,7 @@ void UserInitEnv()
 static int16_t DebugOut(char ch) { fputc(ch,stderr); return 0; }
 
 // Button callbacks
-bool CbBtnQuit(void* pvGui,void *pvElem,gslc_teTouch eTouch,int16_t nX,int16_t nY)
+bool CbBtnQuit(void* pvGui,void *pvElemRef,gslc_teTouch eTouch,int16_t nX,int16_t nY)
 {
   if (eTouch == GSLC_TOUCH_UP_IN) {
     m_bQuit = true;
@@ -69,36 +73,46 @@ bool CbBtnQuit(void* pvGui,void *pvElem,gslc_teTouch eTouch,int16_t nX,int16_t n
   return true;
 }
 
+// - strPath: Path to executable passed in to locate resource files
+bool InitOverlays(const char *strPath)
+{
+  gslc_tsElemRef*  pElemRef = NULL;
+
+  gslc_PageAdd(&m_gui,E_PG_MAIN,m_asPageElem,MAX_ELEM_PG_MAIN,m_asPageElemRef,MAX_ELEM_PG_MAIN);
+
+  // Background flat color
+  gslc_SetBkgndColor(&m_gui,GSLC_COL_GRAY_DK2);
+
+  // Create background box
+  pElemRef = gslc_ElemCreateBox(&m_gui,E_ELEM_BOX,E_PG_MAIN,(gslc_tsRect){10,50,300,150});
+  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_WHITE,GSLC_COL_BLACK,GSLC_COL_BLACK);
+
+  // Create Quit button with image label
+  // - Extra code to demonstrate path generation based on location of executable
+  strncpy(m_strImgQuit,strPath,MAX_PATH);
+  strncat(m_strImgQuit,IMG_BTN_QUIT,MAX_PATH);
+  strncpy(m_strImgQuitSel,strPath,MAX_PATH);
+  strncat(m_strImgQuitSel,IMG_BTN_QUIT_SEL,MAX_PATH);
+  pElemRef = gslc_ElemCreateBtnImg(&m_gui,E_ELEM_BTN_QUIT,E_PG_MAIN,(gslc_tsRect){258,70,32,32},
+          gslc_GetImageFromFile(m_strImgQuit,GSLC_IMGREF_FMT_BMP16),
+          gslc_GetImageFromFile(m_strImgQuitSel,GSLC_IMGREF_FMT_BMP16),
+          &CbBtnQuit);
+
+  return true;
+}
+
 int main( int argc, char* args[] )
 {
-  bool          bOk = true;
-  gslc_tsElem*  pElem = NULL;
 
   // -----------------------------------
   // Initialize
   gslc_InitDebug(&DebugOut);
   UserInitEnv();
-  if (!gslc_Init(&m_gui,&m_drv,m_asPage,MAX_PAGE,m_asFont,MAX_FONT)) { exit(1); }
-
-  // Load Fonts
-  bOk = gslc_FontAdd(&m_gui,E_FONT_BTN,FONT_DROID_SANS,12);
-  if (!bOk) { printf("ERROR: gslc_FontAdd() failed\n"); exit(1); }
-
+  if (!gslc_Init(&m_gui,&m_drv,m_asPage,MAX_PAGE,NULL,0)) { exit(1); }
 
   // -----------------------------------
-  // Create page elements
-  gslc_PageAdd(&m_gui,E_PG_MAIN,m_asPageElem,MAX_ELEM_PG_MAIN,m_asPageElemRef,MAX_ELEM_PG_MAIN);  
-  
-  // Background flat color
-  gslc_SetBkgndColor(&m_gui,GSLC_COL_GRAY_DK2);
-
-  // Create background box
-  pElem = gslc_ElemCreateBox(&m_gui,E_ELEM_BOX,E_PG_MAIN,(gslc_tsRect){10,50,300,150});
-  gslc_ElemSetCol(pElem,GSLC_COL_WHITE,GSLC_COL_BLACK,GSLC_COL_BLACK);
-
-  // Create Quit button with text label
-  pElem = gslc_ElemCreateBtnTxt(&m_gui,E_ELEM_BTN_QUIT,E_PG_MAIN,
-    (gslc_tsRect){120,100,80,40},"Quit",0,E_FONT_BTN,&CbBtnQuit);
+  // Create the graphic elements
+  InitOverlays(dirname(args[0])); // Pass executable path to find resource files
 
   // -----------------------------------
   // Start display
@@ -111,9 +125,9 @@ int main( int argc, char* args[] )
 
   m_bQuit = false;
   while (!m_bQuit) {
-  
-    // Periodically call GUIslice update function    
-    gslc_Update(&m_gui);   
+
+    // Periodically call GUIslice update function
+    gslc_Update(&m_gui);
 
   } // bQuit
 

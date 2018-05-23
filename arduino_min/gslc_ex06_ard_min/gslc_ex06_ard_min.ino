@@ -5,11 +5,11 @@
 // - https://github.com/ImpulseAdventure/GUIslice
 // - Example 06 (Arduino):
 //   - Example of clipping plus draw and tick callback function
-//   - NOTE: This is the simple version of the example without
-//     optimizing for memory consumption. Therefore, it may not
-//     run on Arduino devices with limited memory. A "minimal"
-//     version is located in the "arduino_min" folder which includes
-//     FLASH memory optimization for reduced memory devices.
+//   - Demonstrates the use of ElemCreate*_P() functions
+//     These RAM-reduced examples take advantage of the internal
+//     Flash storage (via PROGMEM).
+//   - NOTE: This sketch requires moderate program storage in Flash.
+//     As a result, it may not run on basic Arduino devices (eg. ATmega328)
 //
 // ARDUINO NOTES:
 // - GUIslice_config.h must be edited to match the pinout connections
@@ -51,8 +51,17 @@ float     m_fCoordZ = 0;
 #define MAX_FONT                2
 
 // Define the maximum number of elements per page
-#define MAX_ELEM_PG_MAIN          21                // # Elems total
-#define MAX_ELEM_PG_MAIN_RAM      MAX_ELEM_PG_MAIN  // # Elems in RAM
+// - To enable the same code to run on devices that support storing
+//   data into Flash (PROGMEM) and those that don't, we can make the
+//   number of elements in Flash dependent upon GSLC_USE_PROGMEM
+// - This should allow both Arduino and ARM Cortex to use the same code
+#define MAX_ELEM_PG_MAIN          19                                        // # Elems total
+#if (GSLC_USE_PROGMEM)
+  #define MAX_ELEM_PG_MAIN_PROG   19                                        // # Elems in Flash
+#else
+  #define MAX_ELEM_PG_MAIN_PROG   0                                         // # Elems in Flash
+#endif
+#define MAX_ELEM_PG_MAIN_RAM      MAX_ELEM_PG_MAIN - MAX_ELEM_PG_MAIN_PROG  // # Elems in RAM
 
 gslc_tsGui                  m_gui;
 gslc_tsDriver               m_drv;
@@ -97,7 +106,7 @@ bool CbDrawScanner(void* pvGui,void* pvElemRef,gslc_teRedrawType eRedraw)
   // Typecast the parameters to match the GUI and element types
   gslc_tsGui*     pGui      = (gslc_tsGui*)(pvGui);
   gslc_tsElemRef* pElemRef  = (gslc_tsElemRef*)(pvElemRef);
-  gslc_tsElem*    pElem     = pElemRef->pElem;
+  gslc_tsElem*    pElem     = gslc_GetElemFromRef(pGui,pElemRef);
 
   // Create shorthand variables for the origin
   int16_t  nX = pElem->rElem.x + m_nOriginX;
@@ -132,7 +141,7 @@ bool CbDrawScanner(void* pvGui,void* pvElemRef,gslc_teRedrawType eRedraw)
   gslc_DrawFrameRect(pGui,pElem->rElem,pElem->colElemFrame);
 
   // Clear the redraw flag
-  gslc_ElemSetRedraw(&m_gui,pElemRef,GSLC_REDRAW_NONE);
+  gslc_ElemSetRedraw(pGui,pElemRef,GSLC_REDRAW_NONE);
 
   return true;
 }
@@ -143,10 +152,9 @@ bool CbDrawScanner(void* pvGui,void* pvElemRef,gslc_teRedrawType eRedraw)
 //   origin of the view which will shift the display
 bool CbTickScanner(void* pvGui,void* pvScope)
 {
-
-  //gslc_tsGui*   pGui      = (gslc_tsGui*)(pvGui);
+  gslc_tsGui*     pGui      = (gslc_tsGui*)(pvGui);
   gslc_tsElemRef* pElemRef  = (gslc_tsElemRef*)(pvScope);
-  //gslc_tsElem*    pElem     = pElemRef->pElem;
+  //gslc_tsElem*    pElem     = gslc_GetElemFromRef(pGui,pElemRef);
 
   m_fCoordX = 50+25.0*(sin(m_nCount/2.5));
   m_fCoordY = 50+15.0*(cos(m_nCount/1.75));
@@ -158,7 +166,7 @@ bool CbTickScanner(void* pvGui,void* pvScope)
 
   // Manually mark the scanner element as needing redraw
   // since we have shifted its relative coordinates (via origin)
-  gslc_ElemSetRedraw(&m_gui,pElemRef,GSLC_REDRAW_FULL);
+  gslc_ElemSetRedraw(pGui,pElemRef,GSLC_REDRAW_FULL);
 
   return true;
 }
@@ -175,7 +183,7 @@ bool CbBtnQuit(void* pvGui,void *pvElemRef,gslc_teTouch eTouch,int16_t nX,int16_
 // Create the default elements on each page
 bool InitOverlays()
 {
-  gslc_tsElemRef* pElemRef = NULL;
+  gslc_tsElemRef*  pElemRef = NULL;
 
   gslc_PageAdd(&m_gui,E_PG_MAIN,m_asPageElem,MAX_ELEM_PG_MAIN_RAM,m_asPageElemRef,MAX_ELEM_PG_MAIN);
 
@@ -183,6 +191,7 @@ bool InitOverlays()
   gslc_SetBkgndColor(&m_gui,GSLC_COL_GRAY_DK3);
 
   // Graphic logo from SD card
+  // - If enabling this, ensure MAX_ELEM_PG_MAIN is incremented
   #if 0
   static const char m_strLogo[] = IMG_LOGO;
   pElemRef = gslc_ElemCreateImg(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){160-100,5,200,40},
@@ -191,94 +200,80 @@ bool InitOverlays()
 
 
   // Create background box
-  pElemRef = gslc_ElemCreateBox(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){10,50,300,150});
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_WHITE,GSLC_COL_BLACK,GSLC_COL_BLACK);
+  gslc_ElemCreateBox_P(&m_gui,100,E_PG_MAIN,10,50,300,150,GSLC_COL_WHITE,GSLC_COL_BLACK,true,true,NULL,NULL);
 
   // Create Quit button with text label
-  pElemRef = gslc_ElemCreateBtnTxt(&m_gui,E_ELEM_BTN_QUIT,E_PG_MAIN,
-    (gslc_tsRect){40,210,50,20},(char*)"QUIT",0,E_FONT_BTN,&CbBtnQuit);
+  gslc_ElemCreateBtnTxt_P(&m_gui,E_ELEM_BTN_QUIT,E_PG_MAIN,40,210,50,20,"Quit",&m_asFont[0],
+    GSLC_COL_WHITE,GSLC_COL_BLUE_DK2,GSLC_COL_BLUE_DK4,GSLC_COL_BLUE_DK2,GSLC_COL_BLUE_DK1,GSLC_ALIGN_MID_MID,true,true,&CbBtnQuit,NULL);
+
 
   // Create counter
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){20,60,50,10},
-    (char*)"Searches:",0,E_FONT_TXT);
-  static char mstr1[8] = "";
-  pElemRef = gslc_ElemCreateTxt(&m_gui,E_ELEM_TXT_COUNT,E_PG_MAIN,(gslc_tsRect){80,60,50,10},
-    mstr1,sizeof(mstr1),E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_GRAY_LT2);
-  m_pElemCount = pElemRef; // Save for quick access
+  // - Static label
+  gslc_ElemCreateTxt_P(&m_gui,101,E_PG_MAIN,20,60,50,10,"Searches:",&m_asFont[1],
+          GSLC_COL_YELLOW,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
+  // - Read-write value
+  static char mstr3[8] = "";  // Placeholder for counter
+  gslc_ElemCreateTxt_P_R(&m_gui,E_ELEM_TXT_COUNT,E_PG_MAIN,80,60,50,10,mstr3,8,&m_asFont[1], // E_FONT_TXT
+          GSLC_COL_GRAY_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
+  m_pElemCount = gslc_PageFindElemById(&m_gui,E_PG_MAIN,E_ELEM_TXT_COUNT);
 
   // Create progress bar
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){20,80,50,10},
-    (char*)"Progress:",0,E_FONT_TXT);
-  pElemRef = gslc_ElemXGaugeCreate(&m_gui,E_ELEM_PROGRESS,E_PG_MAIN,&m_sXGauge,(gslc_tsRect){80,80,50,10},
-    0,100,0,GSLC_COL_GREEN,false);
-  m_pElemProgress = pElemRef; // Save for quick access
+  gslc_ElemCreateTxt_P(&m_gui,102,E_PG_MAIN,20,80,50,10,"Progress:",&m_asFont[1],
+          GSLC_COL_YELLOW,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
+  gslc_ElemXGaugeCreate_P(&m_gui,E_ELEM_PROGRESS,E_PG_MAIN,80,80,50,10,
+    0,100,0,GSLC_COL_GRAY,GSLC_COL_BLACK,GSLC_COL_GREEN,false);
+  m_pElemProgress = gslc_PageFindElemById(&m_gui,E_PG_MAIN,E_ELEM_PROGRESS);
 
 
   // Create other labels
 
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){40,100,50,10},
-    (char*)"Coord X:",0,E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_WHITE);
-  static char mstr2[8] = "";
-  pElemRef = gslc_ElemCreateTxt(&m_gui,E_ELEM_DATAX,E_PG_MAIN,(gslc_tsRect){100,100,50,10},
-    mstr2,sizeof(mstr2),E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_GRAY_LT2);
-  m_pElemDataX = pElemRef; // Save for quick access
+  // Static label
+  gslc_ElemCreateTxt_P(&m_gui,103,E_PG_MAIN,40,100,50,10,"Coord X:",&m_asFont[1],
+          GSLC_COL_WHITE,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
+  // Read/write value
+  static char mstr6[8] = "???";
+  gslc_ElemCreateTxt_P_R(&m_gui,E_ELEM_DATAX,E_PG_MAIN,100,100,50,10,mstr6,8,&m_asFont[1], // E_FONT_TXT
+          GSLC_COL_GRAY_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
 
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){40,120,50,10},
-    (char*)"Coord Y:",0,E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_WHITE);
-  static char mstr3[8] = "";
-  pElemRef = gslc_ElemCreateTxt(&m_gui,E_ELEM_DATAY,E_PG_MAIN,(gslc_tsRect){100,120,50,10},
-    mstr3,sizeof(mstr3),E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_GRAY_LT2);
-  m_pElemDataY = pElemRef; // Save for quick access
+  // Static label
+  gslc_ElemCreateTxt_P(&m_gui,104,E_PG_MAIN,40,120,50,10,"Coord Y:",&m_asFont[1],
+          GSLC_COL_WHITE,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
+  // Read-write value
+  static char mstr8[8] = "";
+  gslc_ElemCreateTxt_P_R(&m_gui,E_ELEM_DATAY,E_PG_MAIN,100,120,50,10,mstr8,8,&m_asFont[1], // E_FONT_TXT
+          GSLC_COL_GRAY_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
 
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){40,140,50,10},
-    (char*)"Coord Z:",0,E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_WHITE);
-  static char mstr4[8] = "";
-  pElemRef = gslc_ElemCreateTxt(&m_gui,E_ELEM_DATAZ,E_PG_MAIN,(gslc_tsRect){100,140,50,10},
-    mstr4,sizeof(mstr4),E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_GRAY_LT2);
-  m_pElemDataZ = pElemRef; // Save for quick access
+  // Static label
+  gslc_ElemCreateTxt_P(&m_gui,105,E_PG_MAIN,40,140,50,10,"Coord Z:",&m_asFont[1],
+          GSLC_COL_WHITE,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
+  // Read-write value
+  static char mstr10[8] = "";
+  gslc_ElemCreateTxt_P_R(&m_gui,E_ELEM_DATAZ,E_PG_MAIN,100,140,50,10,mstr10,8,&m_asFont[1], // E_FONT_TXT
+          GSLC_COL_GRAY_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
 
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){20,170,50,10},
-    (char*)"Control:",0,E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_ORANGE);
+  gslc_ElemCreateTxt_P(&m_gui,106,E_PG_MAIN,20,170,50,10,"Control:",&m_asFont[1],
+          GSLC_COL_ORANGE,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
 
-  pElemRef = gslc_ElemXCheckboxCreate(&m_gui,E_ELEM_CHECK1,E_PG_MAIN,&m_asXCheck[0],
-    (gslc_tsRect){80,170,20,20},false,GSLCX_CHECKBOX_STYLE_X,GSLC_COL_BLUE_LT2,false);
+  gslc_ElemXCheckboxCreate_P(&m_gui,E_ELEM_CHECK1,E_PG_MAIN,80,170,20,20,GSLC_GROUP_ID_NONE,
+          false,GSLCX_CHECKBOX_STYLE_X,GSLC_COL_BLUE_LT2,false);
 
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){110,170,50,10},
-    (char*)"Enable",0,E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_GRAY_LT1);
+  gslc_ElemCreateTxt_P(&m_gui,107,E_PG_MAIN,110,170,50,10,"Enable",&m_asFont[1],
+          GSLC_COL_GRAY_LT1,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,true);
 
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){120,210,170,20},
-    (char*)"Example of GUIslice C library",0,E_FONT_BTN);
-  gslc_ElemSetTxtAlign(&m_gui,pElemRef,GSLC_ALIGN_MID_LEFT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_RED_LT2);
-  gslc_ElemSetFillEn(&m_gui,pElemRef,false);
+  gslc_ElemCreateTxt_P(&m_gui,108,E_PG_MAIN,120,210,170,20,"Example of GUIslice C library",&m_asFont[1],
+          GSLC_COL_RED_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_LEFT,false,false);
 
   // --------------------------------------------------------------------------
   // Create scanner
-  pElemRef = gslc_ElemCreateBox(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){190-1-2,75-1-12,100+2+4,100+2+10+4});
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_BLUE_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK);
+  gslc_ElemCreateBox_P(&m_gui,109,E_PG_MAIN,190-1-2,75-1-12,100+2+4,100+2+10+4,GSLC_COL_BLUE_LT2,GSLC_COL_BLACK,
+          true,true,NULL,NULL);
 
-  pElemRef = gslc_ElemCreateTxt(&m_gui,GSLC_ID_AUTO,E_PG_MAIN,(gslc_tsRect){190,75-11,100,10},
-    (char*)"SCANNER",0,E_FONT_TXT);
-  gslc_ElemSetTxtCol(&m_gui,pElemRef,GSLC_COL_BLUE_DK2);
-  gslc_ElemSetTxtAlign(&m_gui,pElemRef,GSLC_ALIGN_MID_MID);
+  gslc_ElemCreateTxt_P(&m_gui,110,E_PG_MAIN,190,75-11,100,10,"SCANNER",&m_asFont[1],
+          GSLC_COL_BLUE_DK2,GSLC_COL_BLACK,GSLC_COL_BLACK,GSLC_ALIGN_MID_MID,false,true);
 
   // We create a basic box and then provide a custom draw callback function for it
-  pElemRef = gslc_ElemCreateBox(&m_gui,E_ELEM_SCAN,E_PG_MAIN,(gslc_tsRect){190-1,75-1,100+2,100+2});
-  gslc_ElemSetCol(&m_gui,pElemRef,GSLC_COL_BLUE_LT2,GSLC_COL_BLACK,GSLC_COL_BLACK);
-
-  // Set the callback function to handle all drawing for the element
-  gslc_ElemSetDrawFunc(&m_gui,pElemRef,&CbDrawScanner);
-  // Set the callback function to update content automatically
-  gslc_ElemSetTickFunc(&m_gui,pElemRef,&CbTickScanner);
+  gslc_ElemCreateBox_P(&m_gui,E_ELEM_SCAN,E_PG_MAIN,190-1,75-1,100+2,100+2,
+    GSLC_COL_BLUE_LT2,GSLC_COL_BLACK,true,true,&CbDrawScanner,&CbTickScanner);
 
   // --------------------------------------------------------------------------
 
@@ -299,9 +294,9 @@ void setup()
   if (!gslc_Init(&m_gui,&m_drv,m_asPage,MAX_PAGE,m_asFont,MAX_FONT)) { return; }
 
   // Load Fonts
-  bOk = gslc_FontAdd(&m_gui,E_FONT_BTN,GSLC_FONTREF_PTR,NULL,1);
+  bOk = gslc_FontAdd(&m_gui,E_FONT_BTN,GSLC_FONTREF_PTR,NULL,1); // m_asFont[0]
   if (!bOk) { return; }
-  bOk = gslc_FontAdd(&m_gui,E_FONT_TXT,GSLC_FONTREF_PTR,NULL,1);
+  bOk = gslc_FontAdd(&m_gui,E_FONT_TXT,GSLC_FONTREF_PTR,NULL,1); // m_asFont[1]
   if (!bOk) { return; }
 
 
@@ -318,6 +313,7 @@ void setup()
 void loop()
 {
   char              acTxt[MAX_STR];
+  gslc_tsElemRef*   pElemRef = NULL;
 
   // Update the data display values
   m_nCount++;
@@ -329,12 +325,14 @@ void loop()
   // By default, Arduino sprintf() doesn't include floating point
   // support, so we're just going to display integers
   snprintf(acTxt,MAX_STR,"%4d",(int16_t)(m_fCoordX-50));
-  gslc_ElemSetTxtStr(&m_gui,m_pElemDataX,acTxt);
+  pElemRef = gslc_PageFindElemById(&m_gui,E_PG_MAIN,E_ELEM_DATAX);
+  gslc_ElemSetTxtStr(&m_gui,pElemRef,acTxt);
   snprintf(acTxt,MAX_STR,"%4d",(int16_t)(m_fCoordY-50));
-  gslc_ElemSetTxtStr(&m_gui,m_pElemDataY,acTxt);
+  pElemRef = gslc_PageFindElemById(&m_gui,E_PG_MAIN,E_ELEM_DATAY);
+  gslc_ElemSetTxtStr(&m_gui,pElemRef,acTxt);
   snprintf(acTxt,MAX_STR,"%4d",(int16_t)(m_fCoordZ));
-  gslc_ElemSetTxtStr(&m_gui,m_pElemDataZ,acTxt);
-  gslc_ElemSetTxtCol(&m_gui,m_pElemDataZ,(m_fCoordY>50)?GSLC_COL_GREEN_LT2:GSLC_COL_RED_DK2);
+  pElemRef = gslc_PageFindElemById(&m_gui,E_PG_MAIN,E_ELEM_DATAZ);
+  gslc_ElemSetTxtStr(&m_gui,pElemRef,acTxt);
 
   gslc_ElemXGaugeUpdate(&m_gui,m_pElemProgress,50+50*sin(m_nCount/5.0));
 

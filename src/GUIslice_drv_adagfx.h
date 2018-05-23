@@ -4,12 +4,13 @@
 // =======================================================================
 // GUIslice library (driver layer for Adafruit-GFX)
 // - Calvin Hass
-// - http://www.impulseadventure.com/elec/guislice-gui.html
+// - https://www.impulseadventure.com/elec/guislice-gui.html
+// - https://github.com/ImpulseAdventure/GUIslice
 // =======================================================================
 //
 // The MIT License
 //
-// Copyright 2017 Calvin Hass
+// Copyright 2018 Calvin Hass
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -43,10 +44,10 @@ extern "C" {
 #include "GUIslice.h"
 
 #include <stdio.h>
-  
 
-  
-  
+
+
+
 // =======================================================================
 // API support definitions
 // - These defines indicate whether the driver includes optimized
@@ -55,31 +56,33 @@ extern "C" {
 // - At the very minimum, the point draw routine must be available:
 //   gslc_DrvDrawPoint()
 // =======================================================================
-  
+
 #define DRV_HAS_DRAW_POINT          1 ///< Support gslc_DrvDrawPoint()
-  
-  #define DRV_HAS_DRAW_POINTS         0 ///< Support gslc_DrvDrawPoints()  
-  #define DRV_HAS_DRAW_LINE           1 ///< Support gslc_DrvDrawLine()
-  #define DRV_HAS_DRAW_RECT_FRAME     1 ///< Support gslc_DrvDrawFrameRect()
-  #define DRV_HAS_DRAW_RECT_FILL      1 ///< Support gslc_DrvDrawFillRect()
-  #define DRV_HAS_DRAW_CIRCLE_FRAME   1 ///< Support gslc_DrvDrawFrameCircle()
-  #define DRV_HAS_DRAW_CIRCLE_FILL    1 ///< Support gslc_DrvDrawFillCircle()
-  #define DRV_HAS_DRAW_TRI_FRAME      1 ///< Support gslc_DrvDrawFrameTriangle()
-  #define DRV_HAS_DRAW_TRI_FILL       1 ///< Support gslc_DrvDrawFillTriangle()
-  #define DRV_HAS_DRAW_TEXT           1 ///< Support gslc_DrvDrawTxt()
-  
+
+#define DRV_HAS_DRAW_POINTS         0 ///< Support gslc_DrvDrawPoints()
+#define DRV_HAS_DRAW_LINE           1 ///< Support gslc_DrvDrawLine()
+#define DRV_HAS_DRAW_RECT_FRAME     1 ///< Support gslc_DrvDrawFrameRect()
+#define DRV_HAS_DRAW_RECT_FILL      1 ///< Support gslc_DrvDrawFillRect()
+#define DRV_HAS_DRAW_CIRCLE_FRAME   1 ///< Support gslc_DrvDrawFrameCircle()
+#define DRV_HAS_DRAW_CIRCLE_FILL    1 ///< Support gslc_DrvDrawFillCircle()
+#define DRV_HAS_DRAW_TRI_FRAME      1 ///< Support gslc_DrvDrawFrameTriangle()
+#define DRV_HAS_DRAW_TRI_FILL       1 ///< Support gslc_DrvDrawFillTriangle()
+#define DRV_HAS_DRAW_TEXT           1 ///< Support gslc_DrvDrawTxt()
+
+#define DRV_OVERRIDE_TXT_ALIGN      0 ///< Driver provides text alignment
+
 // =======================================================================
 // Driver-specific members
 // =======================================================================
 typedef struct {
   uint16_t      nColRawBkgnd;   ///< Background color (if not image-based)
-  
-  gslc_tsRect   rClipRect;      ///< Clipping rectangle
-  
-} gslc_tsDriver;
-  
 
-  
+  gslc_tsRect   rClipRect;      ///< Clipping rectangle
+
+} gslc_tsDriver;
+
+
+
 // =======================================================================
 // Public APIs to GUIslice core library
 // - These functions define the renderer / driver-dependent
@@ -126,9 +129,9 @@ bool gslc_DrvInitTs(gslc_tsGui* pGui,const char* acDev);
 ///
 /// Free up any members associated with the driver
 /// - Eg. renderers, windows, background surfaces, etc.
-/// 
+///
 /// \param[in]  pGui:         Pointer to GUI
-/// 
+///
 /// \return none
 ///
 void gslc_DrvDestruct(gslc_tsGui* pGui);
@@ -193,26 +196,26 @@ bool gslc_DrvSetElemImageNorm(gslc_tsGui* pGui,gslc_tsElem* pElem,gslc_tsImgRef 
 /// \param[in]  sImgRef:     Image reference
 ///
 /// \return true if success, false if error
-///  
+///
 bool gslc_DrvSetElemImageGlow(gslc_tsGui* pGui,gslc_tsElem* pElem,gslc_tsImgRef sImgRef);
 
 
-/// 
+///
 /// Release an image surface
-/// 
+///
 /// \param[in]  pvImg:          Void ptr to image
-/// 
+///
 /// \return none
 ///
-void gslc_DrvImageDestruct(void* pvImg);  
+void gslc_DrvImageDestruct(void* pvImg);
 
 
-/// 
+///
 /// Set the clipping rectangle for future drawing updates
-/// 
-/// \param[in]  pGui:          Pointer to GUI  
+///
+/// \param[in]  pGui:          Pointer to GUI
 /// \param[in]  pRect:         Rectangular region to constrain edits
-/// 
+///
 /// \return none
 ///
 bool gslc_DrvSetClipRect(gslc_tsGui* pGui,gslc_tsRect* pRect);
@@ -223,20 +226,21 @@ bool gslc_DrvSetClipRect(gslc_tsGui* pGui,gslc_tsRect* pRect);
 // -----------------------------------------------------------------------
 
 ///
-/// Load a font from a file and return pointer to it
+/// Load a font from a resource and return pointer to it
 ///
-/// \param[in]  acFontName:  Filename path to the font
-/// \param[in]  nFontSz:     Typeface size to use
+/// \param[in]  eFontRefType:   Font reference type (GSLC_FONTREF_PTR for Arduino)
+/// \param[in]  pvFontRef:      Font reference pointer (Pointer to the GFXFont array)
+/// \param[in]  nFontSz:        Typeface size to use
 ///
-/// \return true if load was successful, false otherwise
+/// \return Void ptr to driver-specific font if load was successful, NULL otherwise
 ///
-void* gslc_DrvFontAdd(const char* acFontName,uint16_t nFontSz);
+const void* gslc_DrvFontAdd(gslc_teFontRefType eFontRefType,const void* pvFontRef,uint16_t nFontSz);
 
-/// 
+///
 /// Release all fonts defined in the GUI
-/// 
-/// \param[in]  pGui:          Pointer to GUI  
-/// 
+///
+/// \param[in]  pGui:          Pointer to GUI
+///
 /// \return none
 ///
 void gslc_DrvFontsDestruct(gslc_tsGui* pGui);
@@ -249,12 +253,15 @@ void gslc_DrvFontsDestruct(gslc_tsGui* pGui);
 /// \param[in]  pFont:       Ptr to Font structure
 /// \param[in]  pStr:        String to display
 /// \param[in]  eTxtFlags:   Flags associated with text string
+/// \param[out] pnTxtX:      Ptr to offset X of text
+/// \param[out] pnTxtY:      Ptr to offset Y of text
 /// \param[out] pnTxtSzW:    Ptr to width of text
 /// \param[out] pnTxtSzH:    Ptr to height of text
 ///
 /// \return true if success, false if failure
-///  
-bool gslc_DrvGetTxtSize(gslc_tsGui* pGui,gslc_tsFont* pFont,const char* pStr,gslc_teTxtFlags eTxtFlags,uint16_t* pnTxtSzW,uint16_t* pnTxtSzH);
+///
+bool gslc_DrvGetTxtSize(gslc_tsGui* pGui,gslc_tsFont* pFont,const char* pStr,gslc_teTxtFlags eTxtFlags,
+        int16_t* pnTxtX,int16_t* pnTxtY,uint16_t* pnTxtSzW,uint16_t* pnTxtSzH);
 
 
 ///
@@ -269,7 +276,7 @@ bool gslc_DrvGetTxtSize(gslc_tsGui* pGui,gslc_tsFont* pFont,const char* pStr,gsl
 /// \param[in]  colTxt:      Color to draw text
 ///
 /// \return true if success, false if failure
-///  
+///
 bool gslc_DrvDrawTxt(gslc_tsGui* pGui,int16_t nTxtX,int16_t nTxtY,gslc_tsFont* pFont,const char* pStr,gslc_teTxtFlags eTxtFlags,gslc_tsColor colTxt);
 
 
@@ -284,13 +291,13 @@ bool gslc_DrvDrawTxt(gslc_tsGui* pGui,int16_t nTxtX,int16_t nTxtY,gslc_tsFont* p
 /// \param[in]  pGui:        Pointer to GUI
 ///
 /// \return none
-/// 
+///
 void gslc_DrvPageFlipNow(gslc_tsGui* pGui);
 
 
 // -----------------------------------------------------------------------
 // Graphics Primitives Functions
-// -----------------------------------------------------------------------  
+// -----------------------------------------------------------------------
 
 ///
 /// Draw a point
@@ -431,6 +438,23 @@ bool gslc_DrvDrawFillTriangle(gslc_tsGui* pGui,int16_t nX0,int16_t nY0,
 ///
 bool gslc_DrvDrawImage(gslc_tsGui* pGui,int16_t nDstX,int16_t nDstY,gslc_tsImgRef sImgRef);
 
+
+///
+/// Draw a monochrome bitmap from a memory array
+/// - Draw from the bitmap buffer using the foreground color
+///   defined in the header (unset bits are transparent)
+///
+/// \param[in]  pGui:        Pointer to GUI
+/// \param[in]  nDstX:       Destination X coord for copy
+/// \param[in]  nDstY:       Destination Y coord for copy
+/// \param[in]  pBitmap:     Pointer to bitmap buffer
+/// \param[in]  bProgMem:    Bitmap is stored in Flash if true, RAM otherwise
+///
+/// \return none
+///
+void gslc_DrvDrawMonoFromMem(gslc_tsGui* pGui,int16_t nDstX, int16_t nDstY, const unsigned char *pBitmap,bool bProgMem);
+
+
 ///
 /// Copy the background image to destination screen
 ///
@@ -438,12 +462,12 @@ bool gslc_DrvDrawImage(gslc_tsGui* pGui,int16_t nDstX,int16_t nDstY,gslc_tsImgRe
 ///
 /// \return true if success, false if fail
 ///
-void gslc_DrvDrawBkgnd(gslc_tsGui* pGui);  
+void gslc_DrvDrawBkgnd(gslc_tsGui* pGui);
 
 
 // -----------------------------------------------------------------------
 // Touch Functions (if using display driver library)
-// -----------------------------------------------------------------------  
+// -----------------------------------------------------------------------
 
 ///
 /// Perform any touchscreen-specific initialization
@@ -472,7 +496,7 @@ bool gslc_DrvGetTouch(gslc_tsGui* pGui,int16_t* pnX, int16_t* pnY, uint16_t* pnP
 
 // -----------------------------------------------------------------------
 // Touch Functions (if using external touch driver library)
-// -----------------------------------------------------------------------  
+// -----------------------------------------------------------------------
 
 #if defined(DRV_TOUCH_ADA_STMPE610) || defined(DRV_TOUCH_ADA_FT6206)
 
@@ -501,6 +525,24 @@ bool gslc_TDrvInitTouch(gslc_tsGui* pGui,const char* acDev);
 bool gslc_TDrvGetTouch(gslc_tsGui* pGui,int16_t* pnX, int16_t* pnY, uint16_t* pnPress);
 
 #endif // DRV_TOUCH_*
+
+
+// -----------------------------------------------------------------------
+// Dynamic Screen rotation and Touch axes swap/flip functions
+// -----------------------------------------------------------------------
+
+///
+/// Change rotation and axes swap/flip
+///
+/// \param[in]  pGui:        Pointer to GUI
+/// \param[in]  nRotation:   Screen Rotation value (0, 1, 2 or 3)
+/// \param[in]  nSwapXY:     Touchscreen Swap X/Y axes
+/// \param[in]  nFlipX:      Touchscreen Flip X axis
+/// \param[in]  nFlipY:      Touchscreen Flip Y axis
+///
+/// \return true if successful
+///
+bool gslc_DrvRotateSwapFlip(gslc_tsGui* pGui, uint8_t nRotation, uint8_t nSwapXY, uint8_t nFlipX, uint8_t nFlipY );
 
 
 // =======================================================================
